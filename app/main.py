@@ -1,0 +1,37 @@
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from contextlib import asynccontextmanager
+from app.core.scheduler import start_scheduler, stop_scheduler
+from app.routers import monitors, pings, settings, status, profile, auth, telegram
+from app.routers.telegram import setup_telegram_webhook
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    start_scheduler()
+    await setup_telegram_webhook()
+    yield
+    stop_scheduler()
+
+app = FastAPI(title="Cronwatch API", version="1.0.0", lifespan=lifespan)
+
+# CORS setup
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Include routers
+app.include_router(auth.router)
+app.include_router(profile.router)
+app.include_router(monitors.router)
+app.include_router(pings.router)
+app.include_router(settings.router)
+app.include_router(status.router)
+app.include_router(telegram.router)
+
+@app.get("/health")
+def health():
+    return { "status": "ok" }
