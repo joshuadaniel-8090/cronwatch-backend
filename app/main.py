@@ -17,16 +17,8 @@ app = FastAPI(title="Cronwatch API", version="1.0.0", lifespan=lifespan)
 # CORS setup
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "http://localhost:8000",
-        "http://localhost:5173",
-        "http://127.0.0.1:3000",
-        "http://127.0.0.1:5173",
-        "https://aistudio.google.com",
-        "https://cronwatch.onrender.com",
-    ],
-    allow_credentials=True,
+    allow_origins=["*"],  # temporary for testing
+    allow_credentials=False,  # must be False when using wildcard
     allow_methods=["*"],
     allow_headers=["*"],
 )
