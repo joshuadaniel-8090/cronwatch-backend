@@ -8,8 +8,8 @@ class Settings(BaseSettings):
     TELEGRAM_BOT_TOKEN: str = ""
     RESEND_API_KEY: str = ""
     FROM_EMAIL: str = "alerts@cronwatch.dev"
-    APP_URL: str = "http://localhost:3000"
-    API_URL: str = "http://localhost:8000"
+    APP_URL: str
+    API_URL: str
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
