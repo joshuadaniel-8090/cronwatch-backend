@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 import httpx
 from app.core.config import settings
 from pydantic import BaseModel, EmailStr
-from app.core.auth import get_or_create_profile
+from app.core.auth import get_or_create_profile, verify_supabase_token
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -54,5 +54,9 @@ async def login(auth_data: AuthSchema):
         }
 
 @router.get("/me")
-async def get_me(profile = Depends(get_or_create_profile)):
+async def get_me(
+    payload: dict = Depends(verify_supabase_token),
+    profile: dict = Depends(get_or_create_profile)
+):
+    profile["email"] = payload.get("email")
     return profile
