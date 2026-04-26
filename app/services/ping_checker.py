@@ -3,10 +3,9 @@ from app.services.alert_service import send_telegram_alert, send_email_alert
 from datetime import datetime, timedelta, timezone
 
 def check_missed_pings():
-    # Get all active monitors that have been pinged at least once
-    # We join with profiles to get alert settings in one go
+    # Step 1: Get active monitors only (no join)
     result = supabase.table("monitors")\
-        .select("*, profiles(telegram_chat_id, alert_email)")\
+        .select("*")\
         .eq("is_active", True)\
         .not_.is_("last_ping_at", "null")\
         .execute()
@@ -38,14 +37,13 @@ def check_missed_pings():
                 .execute()
 
             if not existing.data:
-                profile = monitor.get("profiles")
-                if not profile:
-                    # Fallback if join didn't work as expected
-                    profile_res = supabase.table("profiles")\
-                        .select("telegram_chat_id, alert_email")\
-                        .eq("id", monitor["user_id"])\
-                        .execute()
-                    profile = profile_res.data[0] if profile_res.data else {}
+                # Step 2: Get profile separately using user_id
+                profile_result = supabase.table("profiles")\
+                    .select("telegram_chat_id, alert_email")\
+                    .eq("id", monitor["user_id"])\
+                    .execute()
+
+                profile = profile_result.data[0] if profile_result.data else {}
 
                 # Send Telegram alert
                 if profile.get("telegram_chat_id"):
