@@ -1,6 +1,7 @@
 from app.core.supabase import supabase
 from app.services.alert_service import send_telegram_alert, send_email_alert
 from datetime import datetime, timedelta, timezone
+import uuid
 
 def check_missed_pings():
     # Step 1: Get active monitors only (no join)
@@ -48,8 +49,11 @@ def check_missed_pings():
                 # Send Telegram alert
                 if profile.get("telegram_chat_id"):
                     supabase.table("alerts").insert({
+                        "id": str(uuid.uuid4()),
                         "monitor_id": monitor["id"],
-                        "channel": "telegram"
+                        "channel": "telegram",
+                        "triggered_at": datetime.now(timezone.utc).isoformat(),
+                        "is_resolved": False
                     }).execute()
                     send_telegram_alert(
                         profile["telegram_chat_id"],
@@ -62,8 +66,11 @@ def check_missed_pings():
                 # Send Email alert
                 if profile.get("alert_email"):
                     supabase.table("alerts").insert({
+                        "id": str(uuid.uuid4()),
                         "monitor_id": monitor["id"],
-                        "channel": "email"
+                        "channel": "email",
+                        "triggered_at": datetime.now(timezone.utc).isoformat(),
+                        "is_resolved": False
                     }).execute()
                     send_email_alert(
                         profile["alert_email"],

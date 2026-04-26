@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException
 from app.core.supabase import supabase
 from datetime import datetime, timezone
+import uuid
 
 router = APIRouter(prefix="/ping", tags=["pings"])
 
@@ -24,6 +25,7 @@ def receive_ping(token: str):
     
     # Record ping
     supabase.table("pings").insert({
+        "id": str(uuid.uuid4()),
         "monitor_id": monitor["id"],
         "status": "ok",
         "received_at": now

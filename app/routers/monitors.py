@@ -33,13 +33,15 @@ def create_monitor(
         raise HTTPException(status_code=403, detail="Free plan limit reached (max 3 monitors)")
     
     new_monitor = {
+        "id": str(uuid.uuid4()),
         "user_id": profile["id"],
         "name": monitor_in.name,
         "interval_seconds": monitor_in.interval_seconds,
         "grace_seconds": monitor_in.grace_seconds,
         "token": str(uuid.uuid4()),
         "slug": str(uuid.uuid4()),
-        "status": "waiting"
+        "status": "waiting",
+        "is_active": True
     }
     
     result = supabase.table("monitors").insert(new_monitor).execute()
