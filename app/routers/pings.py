@@ -1,41 +1,46 @@
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
-from app.core.database import get_db
-from app.models.monitor import Monitor
-from app.models.ping import Ping
-from app.models.alert import Alert
+from fastapi import APIRouter, HTTPException
+from app.core.supabase import supabase
 from datetime import datetime, timezone
 
 router = APIRouter(prefix="/ping", tags=["pings"])
 
 @router.get("/{token}")
-def receive_ping(token: str, db: Session = Depends(get_db)):
-    monitor = db.query(Monitor).filter(Monitor.token == token).first()
-    if not monitor:
+def receive_ping(token: str):
+    # Find monitor by token
+    result = supabase.table("monitors")\
+        .select("*")\
+        .eq("token", token)\
+        .execute()
+        
+    if not result.data:
         raise HTTPException(status_code=404, detail="Monitor not found")
     
-    if not monitor.is_active:
+    monitor = result.data[0]
+    
+    if not monitor["is_active"]:
         return {"message": "ok"}
     
-    now = datetime.now(timezone.utc)
+    now = datetime.now(timezone.utc).isoformat()
     
-    # Create ping record
-    new_ping = Ping(monitor_id=monitor.id, received_at=now, status="ok")
-    db.add(new_ping)
+    # Record ping
+    supabase.table("pings").insert({
+        "monitor_id": monitor["id"],
+        "status": "ok",
+        "received_at": now
+    }).execute()
     
     # Update monitor status
-    monitor.last_ping_at = now
-    monitor.status = "healthy"
+    supabase.table("monitors").update({
+        "last_ping_at": now,
+        "status": "healthy"
+    }).eq("id", monitor["id"]).execute()
     
     # Resolve any open alerts
-    unresolved_alerts = db.query(Alert).filter(
-        Alert.monitor_id == monitor.id,
-        Alert.is_resolved == False
-    ).all()
+    supabase.table("alerts").update({
+        "is_resolved": True,
+        "resolved_at": now
+    }).eq("monitor_id", monitor["id"])\
+      .eq("is_resolved", False)\
+      .execute()
     
-    for alert in unresolved_alerts:
-        alert.is_resolved = True
-        alert.resolved_at = now
-    
-    db.commit()
     return {"message": "ok"}

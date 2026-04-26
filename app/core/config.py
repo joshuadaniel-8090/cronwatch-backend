@@ -1,10 +1,9 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
-    DATABASE_URL: str
     SUPABASE_URL: str
-    SUPABASE_ANON_KEY: str
     SUPABASE_SERVICE_ROLE_KEY: str
+    SUPABASE_ANON_KEY: str
     
     TELEGRAM_BOT_TOKEN: str = ""
     RESEND_API_KEY: str = ""

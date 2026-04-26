@@ -1,79 +1,76 @@
-import asyncio
-from datetime import datetime, timezone, timedelta
-from sqlalchemy.orm import Session
-from app.models.monitor import Monitor
-from app.models.alert import Alert
-from app.models.profile import Profile
+from app.core.supabase import supabase
 from app.services.alert_service import send_telegram_alert, send_email_alert
-import logging
+from datetime import datetime, timedelta, timezone
 
-logger = logging.getLogger(__name__)
+def check_missed_pings():
+    # Get all active monitors that have been pinged at least once
+    # We join with profiles to get alert settings in one go
+    result = supabase.table("monitors")\
+        .select("*, profiles(telegram_chat_id, alert_email)")\
+        .eq("is_active", True)\
+        .not_.is_("last_ping_at", "null")\
+        .execute()
 
-def check_missed_pings(db: Session):
-    """
-    Runs every 60 seconds via APScheduler.
-    """
+    monitors = result.data
     now = datetime.now(timezone.utc)
-    
-    # 1. Fetch all active monitors where last_ping_at is not null
-    monitors = db.query(Monitor).filter(
-        Monitor.is_active == True,
-        Monitor.last_ping_at.isnot(None)
-    ).all()
-    
+
     for monitor in monitors:
-        # 2. For each monitor:
-        # a. deadline = last_ping_at + interval_seconds + grace_seconds
-        deadline = monitor.last_ping_at + timedelta(seconds=monitor.interval_seconds + monitor.grace_seconds)
+        # Parse timestamp from Supabase (ISO format)
+        last_ping_str = monitor["last_ping_at"].replace("Z", "+00:00")
+        last_ping = datetime.fromisoformat(last_ping_str)
         
-        # b. if utcnow() > deadline AND monitor.status != "failing":
-        if now > deadline and monitor.status != "failing":
-            monitor.status = "failing"
-            
-            # check if unresolved alert already exists
-            unresolved_alert = db.query(Alert).filter(
-                Alert.monitor_id == monitor.id,
-                Alert.is_resolved == False
-            ).first()
-            
-            if not unresolved_alert:
-                # fetch profile for monitor.user_id
-                profile = db.query(Profile).filter(Profile.id == monitor.user_id).first()
-                
-                if profile:
-                    if profile.telegram_chat_id:
-                        alert_tg = Alert(monitor_id=monitor.id, channel="telegram")
-                        db.add(alert_tg)
-                        try:
-                            loop = asyncio.new_event_loop()
-                            asyncio.set_event_loop(loop)
-                            loop.run_until_complete(send_telegram_alert(
-                                profile.telegram_chat_id, 
-                                monitor.name, 
-                                str(monitor.id),
-                                monitor.interval_seconds, 
-                                monitor.last_ping_at
-                            ))
-                            loop.close()
-                        except Exception as e:
-                            logger.error(f"Error sending Telegram alert: {e}")
+        # Calculate deadline
+        deadline = last_ping + timedelta(seconds=monitor["interval_seconds"] + (monitor["grace_seconds"] or 60))
 
-                    if profile.alert_email:
-                        alert_email = Alert(monitor_id=monitor.id, channel="email")
-                        db.add(alert_email)
-                        try:
-                            loop = asyncio.new_event_loop()
-                            asyncio.set_event_loop(loop)
-                            loop.run_until_complete(send_email_alert(
-                                profile.alert_email, 
-                                monitor.name, 
-                                str(monitor.id),
-                                monitor.interval_seconds, 
-                                monitor.last_ping_at
-                            ))
-                            loop.close()
-                        except Exception as e:
-                            logger.error(f"Error sending email alert: {e}")
+        if now > deadline and monitor["status"] != "failing":
+            print(f"Monitor {monitor['name']} ({monitor['id']}) is failing!")
+            
+            # Mark as failing
+            supabase.table("monitors").update({
+                "status": "failing"
+            }).eq("id", monitor["id"]).execute()
 
-    db.commit()
-    logger.info(f"Ping check completed at {now}")
+            # Check for existing unresolved alert
+            existing = supabase.table("alerts")\
+                .select("id")\
+                .eq("monitor_id", monitor["id"])\
+                .eq("is_resolved", False)\
+                .execute()
+
+            if not existing.data:
+                profile = monitor.get("profiles")
+                if not profile:
+                    # Fallback if join didn't work as expected
+                    profile_res = supabase.table("profiles")\
+                        .select("telegram_chat_id, alert_email")\
+                        .eq("id", monitor["user_id"])\
+                        .execute()
+                    profile = profile_res.data[0] if profile_res.data else {}
+
+                # Send Telegram alert
+                if profile.get("telegram_chat_id"):
+                    supabase.table("alerts").insert({
+                        "monitor_id": monitor["id"],
+                        "channel": "telegram"
+                    }).execute()
+                    send_telegram_alert(
+                        profile["telegram_chat_id"],
+                        monitor["name"],
+                        monitor["id"],
+                        monitor["interval_seconds"],
+                        monitor["last_ping_at"]
+                    )
+
+                # Send Email alert
+                if profile.get("alert_email"):
+                    supabase.table("alerts").insert({
+                        "monitor_id": monitor["id"],
+                        "channel": "email"
+                    }).execute()
+                    send_email_alert(
+                        profile["alert_email"],
+                        monitor["name"],
+                        monitor["id"],
+                        monitor["interval_seconds"],
+                        monitor["last_ping_at"]
+                    )
