@@ -32,9 +32,9 @@ app.include_router(settings.router)
 app.include_router(status.router)
 app.include_router(telegram.router)
 
-@app.get("/health")
+@app.api_route("/health", methods=["GET", "HEAD"])
 def health():
-    return { "status": "ok" }
+    return {"status": "ok"}
 
 if __name__ == "__main__":
     import uvicorn
