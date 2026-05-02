@@ -1,12 +1,13 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, BackgroundTasks
 from app.core.supabase import supabase
+from app.services.alert_service import send_recovery_alerts
 from datetime import datetime, timezone
 import uuid
 
 router = APIRouter(prefix="/ping", tags=["pings"])
 
 @router.get("/{token}")
-def receive_ping(token: str):
+async def receive_ping(token: str, background_tasks: BackgroundTasks):
     # Find monitor by token
     result = supabase.table("monitors")\
         .select("*")\
@@ -21,13 +22,16 @@ def receive_ping(token: str):
     if not monitor["is_active"]:
         return {"message": "ok"}
     
-    now = datetime.now(timezone.utc).isoformat()
+    now_dt = datetime.now(timezone.utc)
+    now = now_dt.isoformat()
+    
+    is_recovery = monitor["status"] == "failing"
     
     # Record ping
     supabase.table("pings").insert({
         "id": str(uuid.uuid4()),
         "monitor_id": monitor["id"],
-        "status": "ok",
+        "status": "recovery" if is_recovery else "ok",
         "received_at": now
     }).execute()
     
@@ -37,12 +41,39 @@ def receive_ping(token: str):
         "status": "healthy"
     }).eq("id", monitor["id"]).execute()
     
-    # Resolve any open alerts
-    supabase.table("alerts").update({
-        "is_resolved": True,
-        "resolved_at": now
-    }).eq("monitor_id", monitor["id"])\
-      .eq("is_resolved", False)\
-      .execute()
+    # Handle recovery logic
+    if is_recovery:
+        # Resolve any open alerts in database
+        supabase.table("alerts").update({
+            "is_resolved": True,
+            "resolved_at": now
+        }).eq("monitor_id", monitor["id"])\
+          .eq("is_resolved", False)\
+          .execute()
+          
+        # Fetch profile for alert destinations
+        profile_result = supabase.table("profiles")\
+            .select("telegram_chat_id, alert_email")\
+            .eq("id", monitor["user_id"])\
+            .execute()
+            
+        if profile_result.data:
+            profile = profile_result.data[0]
+            # Send recovery alerts in background
+            background_tasks.add_task(
+                send_recovery_alerts, 
+                profile, 
+                monitor["name"], 
+                now_dt
+            )
+    else:
+        # Still resolve alerts even if not failing (e.g. waiting -> healthy)
+        supabase.table("alerts").update({
+            "is_resolved": True,
+            "resolved_at": now
+        }).eq("monitor_id", monitor["id"])\
+          .eq("is_resolved", False)\
+          .execute()
     
     return {"message": "ok"}
+

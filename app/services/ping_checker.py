@@ -3,7 +3,7 @@ from app.services.alert_service import send_telegram_alert, send_email_alert
 from datetime import datetime, timedelta, timezone
 import uuid
 
-def check_missed_pings():
+async def check_missed_pings():
     # Step 1: Get active monitors only (no join)
     result = supabase.table("monitors")\
         .select("*")\
@@ -55,12 +55,12 @@ def check_missed_pings():
                         "triggered_at": datetime.now(timezone.utc).isoformat(),
                         "is_resolved": False
                     }).execute()
-                    send_telegram_alert(
+                    await send_telegram_alert(
                         profile["telegram_chat_id"],
                         monitor["name"],
                         monitor["id"],
                         monitor["interval_seconds"],
-                        monitor["last_ping_at"]
+                        last_ping
                     )
 
                 # Send Email alert
@@ -72,10 +72,11 @@ def check_missed_pings():
                         "triggered_at": datetime.now(timezone.utc).isoformat(),
                         "is_resolved": False
                     }).execute()
-                    send_email_alert(
+                    await send_email_alert(
                         profile["alert_email"],
                         monitor["name"],
                         monitor["id"],
                         monitor["interval_seconds"],
-                        monitor["last_ping_at"]
+                        last_ping
                     )
+
