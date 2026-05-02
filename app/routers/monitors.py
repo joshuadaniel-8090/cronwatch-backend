@@ -29,7 +29,7 @@ def create_monitor(
         .execute()
     count = count_result.count or 0
 
-    if profile["plan"] == "free" and count >= 3:
+    if profile["plan"] == "free" and count >= 15:
         raise HTTPException(status_code=403, detail="Free plan limit reached (max 3 monitors)")
     
     new_monitor = {
