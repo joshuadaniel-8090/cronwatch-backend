@@ -20,7 +20,12 @@ async def receive_ping(token: str, background_tasks: BackgroundTasks):
     monitor = result.data[0]
     
     if not monitor["is_active"]:
-        return {"message": "ok"}
+        return {
+            "status": "received",
+            "monitor": monitor["name"],
+            "timestamp": datetime.utcnow().isoformat() + "Z",
+            "message": f"Ping received for '{monitor['name']}'. Your job is healthy."
+        }
     
     now_dt = datetime.now(timezone.utc)
     now = now_dt.isoformat()

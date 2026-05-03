@@ -125,3 +125,83 @@ async def send_test_email(to_email: str):
         "html": "<p>Cronwatch test alert — your email alerts are working!</p>",
     }
     resend.Emails.send(params)
+
+async def send_url_down_alert(
+    profile: dict,
+    name: str,
+    url: str,
+    error_message: Optional[str],
+    checked_at: datetime,
+    monitor_id: str
+):
+    checked_at_str = checked_at.strftime("%Y-%m-%d %H:%M:%S UTC")
+    
+    # Telegram
+    if profile.get("telegram_chat_id"):
+        telegram_url = f"https://api.telegram.org/bot{settings.TELEGRAM_BOT_TOKEN}/sendMessage"
+        message = (
+            "🔴 *Cronwatch URL Alert*\n\n"
+            f"Monitor: {name}\n"
+            f"URL: {url}\n"
+            "Status: DOWN\n"
+            f"Error: {error_message or 'Connection failed'}\n"
+            f"Checked at: {checked_at_str}\n\n"
+            f"View: {settings.APP_URL}/url-monitors/{monitor_id}"
+        )
+        async with httpx.AsyncClient() as client:
+            await client.post(telegram_url, json={"chat_id": profile["telegram_chat_id"], "text": message, "parse_mode": "Markdown"})
+
+    # Email
+    if profile.get("alert_email"):
+        html_content = f"""
+        <h2 style="color: #ef4444;">🔴 {name} is DOWN</h2>
+        <p><strong>URL:</strong> {url}</p>
+        <p><strong>Error:</strong> {error_message or 'Connection failed'}</p>
+        <p><strong>Checked at:</strong> {checked_at_str}</p>
+        <p><a href="{settings.APP_URL}/url-monitors/{monitor_id}">View Dashboard</a></p>
+        """
+        params = {
+            "from": settings.FROM_EMAIL,
+            "to": [profile["alert_email"]],
+            "subject": f"🔴 {name} is DOWN — {url}",
+            "html": html_content,
+        }
+        resend.Emails.send(params)
+
+async def send_url_recovery_alert(
+    profile: dict,
+    name: str,
+    url: str,
+    response_time_ms: int,
+    monitor_id: str
+):
+    # Telegram
+    if profile.get("telegram_chat_id"):
+        telegram_url = f"https://api.telegram.org/bot{settings.TELEGRAM_BOT_TOKEN}/sendMessage"
+        message = (
+            "✅ *Cronwatch Recovery*\n\n"
+            f"Monitor: {name}\n"
+            f"URL: {url}\n"
+            "Status: BACK UP\n"
+            f"Response time: {response_time_ms}ms\n\n"
+            f"View: {settings.APP_URL}/url-monitors/{monitor_id}"
+        )
+        async with httpx.AsyncClient() as client:
+            await client.post(telegram_url, json={"chat_id": profile["telegram_chat_id"], "text": message, "parse_mode": "Markdown"})
+
+    # Email
+    if profile.get("alert_email"):
+        html_content = f"""
+        <h2 style="color: #10b981;">✅ {name} is back UP</h2>
+        <p><strong>URL:</strong> {url}</p>
+        <p><strong>Response time:</strong> {response_time_ms}ms</p>
+        <p><a href="{settings.APP_URL}/url-monitors/{monitor_id}">View Dashboard</a></p>
+        """
+        params = {
+            "from": settings.FROM_EMAIL,
+            "to": [profile["alert_email"]],
+            "subject": f"✅ {name} is back UP",
+            "html": html_content,
+        }
+        resend.Emails.send(params)
+

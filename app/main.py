@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from app.core.scheduler import start_scheduler, stop_scheduler
-from app.routers import monitors, pings, settings, status, profile, auth, telegram
+from app.routers import monitors, pings, settings, status, profile, auth, telegram, url_monitors
 from app.routers.telegram import setup_telegram_webhook
 
 @asynccontextmanager
@@ -28,9 +28,11 @@ app.include_router(auth.router)
 app.include_router(profile.router)
 app.include_router(monitors.router)
 app.include_router(pings.router)
+app.include_router(url_monitors.router)
 app.include_router(settings.router)
 app.include_router(status.router)
 app.include_router(telegram.router)
+
 
 @app.api_route("/health", methods=["GET", "HEAD"])
 def health():
