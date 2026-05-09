@@ -70,23 +70,39 @@ async def check_url_monitors():
                         if profile_res.data:
                             profile = profile_res.data[0]
                             
-                            # Create alert record
-                            supabase.table("url_monitor_alerts").insert({
-                                "id": str(uuid.uuid4()),
-                                "url_monitor_id": monitor["id"],
-                                "channel": "both",
-                                "triggered_at": now.isoformat(),
-                                "is_resolved": False
-                            }).execute()
+                            # Mute Check Logic
+                            muted_monitors = profile.get("muted_monitors") or {}
+                            is_muted = False
+                            if monitor["id"] in muted_monitors:
+                                try:
+                                    expiry_str = muted_monitors[monitor["id"]].replace("Z", "+00:00")
+                                    expiry = datetime.fromisoformat(expiry_str)
+                                    if now < expiry:
+                                        is_muted = True
+                                    else:
+                                        del muted_monitors[monitor["id"]]
+                                        supabase.table("profiles").update({"muted_monitors": muted_monitors}).eq("id", monitor["user_id"]).execute()
+                                except:
+                                    pass
 
-                            await send_url_down_alert(
-                                profile,
-                                monitor["name"],
-                                monitor["url"],
-                                check_result["error_message"] or (f"Status Code: {check_result['status_code']}" if check_result['status_code'] else "Failed"),
-                                now,
-                                monitor["id"]
-                            )
+                            if not is_muted:
+                                # Create alert record
+                                supabase.table("url_monitor_alerts").insert({
+                                    "id": str(uuid.uuid4()),
+                                    "url_monitor_id": monitor["id"],
+                                    "channel": "both",
+                                    "triggered_at": now.isoformat(),
+                                    "is_resolved": False
+                                }).execute()
+
+                                await send_url_down_alert(
+                                    profile,
+                                    monitor["name"],
+                                    monitor["url"],
+                                    check_result["error_message"] or (f"Status Code: {check_result['status_code']}" if check_result['status_code'] else "Failed"),
+                                    now,
+                                    monitor["id"]
+                                )
 
                 elif new_status == "up" and old_status == "down":
                     # Resolve alerts
@@ -99,13 +115,30 @@ async def check_url_monitors():
                     profile_res = supabase.table("profiles").select("*").eq("id", monitor["user_id"]).execute()
                     if profile_res.data:
                         profile = profile_res.data[0]
-                        await send_url_recovery_alert(
-                            profile,
-                            monitor["name"],
-                            monitor["url"],
-                            check_result["response_time_ms"] or 0,
-                            monitor["id"]
-                        )
+                        
+                        # Mute Check for Recovery
+                        muted_monitors = profile.get("muted_monitors") or {}
+                        is_muted = False
+                        if monitor["id"] in muted_monitors:
+                            try:
+                                expiry_str = muted_monitors[monitor["id"]].replace("Z", "+00:00")
+                                expiry = datetime.fromisoformat(expiry_str)
+                                if now < expiry:
+                                    is_muted = True
+                                else:
+                                    del muted_monitors[monitor["id"]]
+                                    supabase.table("profiles").update({"muted_monitors": muted_monitors}).eq("id", monitor["user_id"]).execute()
+                            except:
+                                pass
+
+                        if not is_muted:
+                            await send_url_recovery_alert(
+                                profile,
+                                monitor["name"],
+                                monitor["url"],
+                                check_result["response_time_ms"] or 0,
+                                monitor["id"]
+                            )
 
             except Exception as e:
                 print(f"Error checking monitor {monitor.get('id', 'unknown')}: {str(e)}")

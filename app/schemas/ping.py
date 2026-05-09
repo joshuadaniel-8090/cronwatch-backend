@@ -15,3 +15,14 @@ class PingResponse(BaseModel):
 class PingListResponse(BaseModel):
     pings: List[PingResponse]
     total: int
+
+class PingEventResponse(BaseModel):
+    id: UUID
+    monitor_id: UUID
+    monitor_name: str
+    status: str
+    received_at: datetime
+
+class HistoryResponse(BaseModel):
+    events: List[PingEventResponse]
+    total: int

@@ -53,3 +53,12 @@ class URLMonitorLogResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+class URLTestRequest(BaseModel):
+    url: str
+
+class URLTestResponse(BaseModel):
+    status: str
+    status_code: Optional[int] = None
+    response_time_ms: Optional[int] = None
+    error_message: Optional[str] = None

@@ -1,9 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from app.core.auth import get_current_user_id, get_or_create_profile
 from app.core.supabase import supabase
-from app.schemas.monitor import MonitorCreate, MonitorUpdate, MonitorResponse
+from app.schemas.monitor import MonitorCreate, MonitorUpdate, MonitorResponse, MonitorStatsResponse
+from app.schemas.alert import AlertListResponse
 from app.schemas.ping import PingListResponse
 from typing import List
+from datetime import datetime, timedelta, timezone
 import uuid
 
 router = APIRouter(prefix="/monitors", tags=["monitors"])
@@ -97,6 +99,81 @@ def delete_monitor(id: uuid.UUID, user_id: str = Depends(get_current_user_id)):
         raise HTTPException(status_code=404, detail="Monitor not found")
         
     return {"message": "Monitor deleted"}
+
+@router.get("/{id}/stats", response_model=MonitorStatsResponse)
+def get_monitor_stats(id: uuid.UUID, user_id: str = Depends(get_current_user_id)):
+    # 1. Verify ownership and get monitor details
+    monitor_result = supabase.table("monitors")\
+        .select("last_ping_at, status")\
+        .eq("id", str(id))\
+        .eq("user_id", user_id)\
+        .execute()
+        
+    if not monitor_result.data:
+        raise HTTPException(status_code=404, detail="Monitor not found")
+    
+    monitor = monitor_result.data[0]
+    
+    # 2. Get pings for last 30 days
+    thirty_days_ago = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
+    
+    pings_result = supabase.table("pings")\
+        .select("status")\
+        .eq("monitor_id", str(id))\
+        .gte("received_at", thirty_days_ago)\
+        .execute()
+    
+    pings = pings_result.data
+    total_pings = len(pings)
+    successful_pings = len([p for p in pings if p["status"] == "ok"])
+    failed_pings = total_pings - successful_pings
+    
+    uptime_percentage = 100.0
+    if total_pings > 0:
+        uptime_percentage = round((successful_pings / total_pings) * 100, 2)
+        
+    return {
+        "total_pings": total_pings,
+        "successful_pings": successful_pings,
+        "failed_pings": failed_pings,
+        "uptime_percentage": uptime_percentage,
+        "last_ping_at": monitor["last_ping_at"],
+        "current_status": monitor["status"]
+    }
+
+@router.get("/{id}/alerts", response_model=AlertListResponse)
+def get_monitor_alerts(
+    id: uuid.UUID,
+    page: int = Query(1, ge=1),
+    limit: int = Query(50, ge=1, le=100),
+    user_id: str = Depends(get_current_user_id)
+):
+    # Verify ownership
+    monitor_result = supabase.table("monitors")\
+        .select("id")\
+        .eq("id", str(id))\
+        .eq("user_id", user_id)\
+        .execute()
+        
+    if not monitor_result.data:
+        raise HTTPException(status_code=404, detail="Monitor not found")
+        
+    # Get total count
+    count_result = supabase.table("alerts")\
+        .select("id", count="exact")\
+        .eq("monitor_id", str(id))\
+        .execute()
+    total = count_result.count or 0
+    
+    # Get alerts
+    alerts_result = supabase.table("alerts")\
+        .select("*")\
+        .eq("monitor_id", str(id))\
+        .order("triggered_at", desc=True)\
+        .range((page - 1) * limit, page * limit - 1)\
+        .execute()
+        
+    return {"alerts": alerts_result.data, "total": total}
 
 @router.get("/{id}/pings", response_model=PingListResponse)
 def get_monitor_pings(

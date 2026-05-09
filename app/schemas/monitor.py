@@ -33,3 +33,11 @@ class MonitorResponse(MonitorBase):
 
     class Config:
         from_attributes = True
+
+class MonitorStatsResponse(BaseModel):
+    total_pings: int
+    successful_pings: int
+    failed_pings: int
+    uptime_percentage: float
+    last_ping_at: Optional[datetime]
+    current_status: str

@@ -4,19 +4,19 @@ from jose import jwt, JWTError
 import httpx
 from app.core.config import settings
 from app.core.supabase import supabase
-import time
+from datetime import datetime, timedelta
 
-_jwks_cache = None
-_jwks_last_fetched = 0
-JWKS_CACHE_TTL = 3600  # 1 hour in seconds
+_jwks_cache = {}
+_jwks_last_fetched = None
+JWKS_CACHE_TTL = timedelta(hours=1)
 
 security = HTTPBearer()
 
 async def get_jwks():
     global _jwks_cache, _jwks_last_fetched
     
-    now = time.time()
-    if _jwks_cache and (now - _jwks_last_fetched < JWKS_CACHE_TTL):
+    now = datetime.now()
+    if _jwks_cache and _jwks_last_fetched and (now - _jwks_last_fetched < JWKS_CACHE_TTL):
         return _jwks_cache
 
     url = f"{settings.SUPABASE_URL}/auth/v1/.well-known/jwks.json"
