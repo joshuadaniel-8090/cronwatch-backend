@@ -4,16 +4,30 @@ from jose import jwt, JWTError
 import httpx
 from app.core.config import settings
 from app.core.supabase import supabase
+import time
+
+_jwks_cache = None
+_jwks_last_fetched = 0
+JWKS_CACHE_TTL = 3600  # 1 hour in seconds
 
 security = HTTPBearer()
 
 async def get_jwks():
+    global _jwks_cache, _jwks_last_fetched
+    
+    now = time.time()
+    if _jwks_cache and (now - _jwks_last_fetched < JWKS_CACHE_TTL):
+        return _jwks_cache
+
     url = f"{settings.SUPABASE_URL}/auth/v1/.well-known/jwks.json"
     async with httpx.AsyncClient() as client:
         response = await client.get(url)
         if response.status_code != 200:
             raise HTTPException(status_code=500, detail="Failed to fetch JWKS from Supabase")
-        return response.json()
+        
+        _jwks_cache = response.json()
+        _jwks_last_fetched = now
+        return _jwks_cache
 
 async def verify_supabase_token(
     credentials: HTTPAuthorizationCredentials = Depends(security)

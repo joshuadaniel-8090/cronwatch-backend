@@ -29,8 +29,8 @@ def create_monitor(
         .execute()
     count = count_result.count or 0
 
-    if profile["plan"] == "free" and count >= 15:
-        raise HTTPException(status_code=403, detail="Free plan limit reached (max 3 monitors)")
+    if profile["plan"] == "free" and count >= 5:
+        raise HTTPException(status_code=403, detail="Free plan limit reached (max 5 monitors)")
     
     new_monitor = {
         "id": str(uuid.uuid4()),

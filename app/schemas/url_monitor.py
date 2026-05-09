@@ -1,21 +1,33 @@
-from pydantic import BaseModel, HttpUrl
+from pydantic import BaseModel, HttpUrl, field_validator
 from datetime import datetime
 from typing import Optional
 import uuid
 
 class URLMonitorBase(BaseModel):
     name: str
-    url: str
+    url: HttpUrl
     check_interval_seconds: int = 600
+
+    @field_validator("url", mode="after")
+    @classmethod
+    def url_to_str(cls, v: HttpUrl) -> str:
+        return str(v)
 
 class URLMonitorCreate(URLMonitorBase):
     pass
 
 class URLMonitorUpdate(BaseModel):
     name: Optional[str] = None
-    url: Optional[str] = None
+    url: Optional[HttpUrl] = None
     check_interval_seconds: Optional[int] = None
     is_active: Optional[bool] = None
+
+    @field_validator("url", mode="after")
+    @classmethod
+    def url_to_str(cls, v: Optional[HttpUrl]) -> Optional[str]:
+        if v is None:
+            return None
+        return str(v)
 
 class URLMonitorResponse(URLMonitorBase):
     id: uuid.UUID

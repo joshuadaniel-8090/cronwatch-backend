@@ -1,5 +1,6 @@
 # Schemas package
-from app.schemas.profile import ProfileResponse, AlertSettingsUpdate, AlertSettingsResponse
+from app.schemas.profile import ProfileResponse
+from app.schemas.settings import AlertSettingsUpdate, AlertSettingsResponse
 from app.schemas.monitor import MonitorCreate, MonitorUpdate, MonitorResponse
 from app.schemas.ping import PingResponse, PingListResponse
 from app.schemas.alert import AlertResponse

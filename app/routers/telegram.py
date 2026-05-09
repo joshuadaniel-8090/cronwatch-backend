@@ -8,6 +8,12 @@ router = APIRouter(prefix="/telegram", tags=["telegram"])
 
 @router.post("/webhook")
 async def telegram_webhook(request: Request):
+    # Verify secret token if configured
+    if settings.TELEGRAM_SECRET_TOKEN:
+        x_secret = request.headers.get("X-Telegram-Bot-Api-Secret-Token")
+        if x_secret != settings.TELEGRAM_SECRET_TOKEN:
+            raise HTTPException(status_code=403, detail="Unauthorized webhook request")
+
     data = await request.json()
     
     if "message" not in data:
@@ -160,18 +166,23 @@ async def send_telegram_message(chat_id: int, text: str):
 
 async def setup_telegram_webhook():
     if not settings.TELEGRAM_BOT_TOKEN:
-        print("TELEGRAM_BOT_TOKEN not set, skipping webhook setup.")
-        return
+        raise RuntimeError("TELEGRAM_BOT_TOKEN is not set. Telegram bot will not work.")
     
     webhook_url = f"{settings.API_URL}/telegram/webhook"
     url = f"https://api.telegram.org/bot{settings.TELEGRAM_BOT_TOKEN}/setWebhook"
     
+    payload = {"url": webhook_url}
+    if settings.TELEGRAM_SECRET_TOKEN:
+        payload["secret_token"] = settings.TELEGRAM_SECRET_TOKEN
+    
     async with httpx.AsyncClient() as client:
         try:
-            response = await client.post(url, json={"url": webhook_url})
+            response = await client.post(url, json=payload)
             if response.status_code == 200:
                 print(f"Telegram webhook set to: {webhook_url}")
             else:
-                print(f"Failed to set Telegram webhook: {response.text}")
+                raise RuntimeError(f"Failed to set Telegram webhook: {response.status_code} - {response.text}")
         except Exception as e:
-            print(f"Error setting Telegram webhook: {str(e)}")
+            if isinstance(e, RuntimeError):
+                raise
+            raise RuntimeError(f"Error setting Telegram webhook: {str(e)}") from e

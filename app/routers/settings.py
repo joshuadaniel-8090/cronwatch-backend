@@ -2,15 +2,14 @@ from fastapi import APIRouter, Depends, HTTPException
 from app.core.auth import get_current_user_id
 from app.core.supabase import supabase
 from app.routers.telegram import send_telegram_message
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel
+from app.schemas.settings import AlertSettingsUpdate, AlertSettingsResponse
 from typing import Optional
 
 router = APIRouter(prefix="/settings", tags=["settings"])
 
 
-class AlertSettingsUpdate(BaseModel):
-    telegram_chat_id: Optional[str] = None
-    alert_email: Optional[EmailStr] = None
+
 
 
 class TestAlertRequest(BaseModel):

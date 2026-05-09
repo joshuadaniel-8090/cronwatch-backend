@@ -6,6 +6,7 @@ class Settings(BaseSettings):
     SUPABASE_ANON_KEY: str
     
     TELEGRAM_BOT_TOKEN: str = ""
+    TELEGRAM_SECRET_TOKEN: str = ""
     RESEND_API_KEY: str = ""
     FROM_EMAIL: str = "alerts@cronwatch.dev"
     APP_URL: str
