@@ -166,23 +166,23 @@ async def send_telegram_message(chat_id: int, text: str):
 
 async def setup_telegram_webhook():
     if not settings.TELEGRAM_BOT_TOKEN:
-        raise RuntimeError("TELEGRAM_BOT_TOKEN is not set. Telegram bot will not work.")
-    
+        print("TELEGRAM_BOT_TOKEN not set, skipping webhook setup.")
+        return
+
+    if not settings.API_URL or "localhost" in settings.API_URL or "127.0.0.1" in settings.API_URL:
+        print("Local environment detected, skipping webhook setup.")
+        return
+
     webhook_url = f"{settings.API_URL}/telegram/webhook"
     url = f"https://api.telegram.org/bot{settings.TELEGRAM_BOT_TOKEN}/setWebhook"
-    
-    payload = {"url": webhook_url}
-    if settings.TELEGRAM_SECRET_TOKEN:
-        payload["secret_token"] = settings.TELEGRAM_SECRET_TOKEN
-    
+
     async with httpx.AsyncClient() as client:
         try:
-            response = await client.post(url, json=payload)
+            response = await client.post(url, json={"url": webhook_url})
             if response.status_code == 200:
                 print(f"Telegram webhook set to: {webhook_url}")
             else:
-                raise RuntimeError(f"Failed to set Telegram webhook: {response.status_code} - {response.text}")
+                print(f"Failed to set Telegram webhook: {response.text}")
         except Exception as e:
-            if isinstance(e, RuntimeError):
-                raise
-            raise RuntimeError(f"Error setting Telegram webhook: {str(e)}") from e
+            print(f"Error setting Telegram webhook: {str(e)}")
+
