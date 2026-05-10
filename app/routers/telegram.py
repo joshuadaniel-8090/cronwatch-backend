@@ -467,9 +467,11 @@ async def telegram_webhook(request: Request):
         elif command == "/unmute": await handle_mute(chat_id, user_id, args, is_unmute=True)
         elif command == "/summary": await handle_summary(chat_id, user_id)
         elif command == "/help": await handle_help(chat_id)
+        elif command == "/backend": await handle_backend(chat_id)
         else:
             # Suggest command
-            all_cmds = ["/status", "/list", "/monitor", "/watch", "/alerts", "/pause", "/resume", "/mute", "/unmute", "/summary", "/help", "/chatid"]
+            all_cmds = ["/status", "/list", "/monitor", "/watch", "/alerts", "/pause", "/resume", "/mute", "/unmute", "/summary", "/help", "/chatid", "/backend"] 
+            # remove /backend from all_cmds for now
             matches = get_close_matches(command, all_cmds, n=1, cutoff=0.6)
             suggestion = f"\n\nDid you mean `{matches[0]}`?" if matches else ""
             await send_telegram_message(chat_id, format_response(f"❓ *Unknown command* `{escape_md(command)}`{suggestion}"))
@@ -485,3 +487,22 @@ async def setup_telegram_webhook():
     webhook_url = f"{settings.API_URL}/telegram/webhook"
     async with httpx.AsyncClient() as client:
         await client.post(f"https://api.telegram.org/bot{settings.TELEGRAM_BOT_TOKEN}/setWebhook", json={"url": webhook_url, "secret_token": settings.TELEGRAM_SECRET_TOKEN})
+
+async def handle_backend(chat_id: int):
+    api_url = settings.API_URL or "Unknown"
+
+    env = "Production"
+    if "localhost" in api_url or "127.0.0.1" in api_url:
+        env = "Local Development"
+    elif "dev" in api_url:
+        env = "Development"
+    elif "staging" in api_url:
+        env = "Staging"
+
+    content = (
+        f"🖥️ *Backend Environment*\n\n"
+        f"Environment: `{escape_md(env)}`\n"
+        f"API URL:\n`{escape_md(api_url)}`"
+    )
+
+    await send_telegram_message(chat_id, format_response(content))
