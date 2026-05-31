@@ -60,7 +60,7 @@ def get_fuzzy_match(query: str, items: List[Dict[str, Any]]) -> List[Dict[str, A
 
 async def handle_start(chat_id: int, profile: Optional[Dict]):
     if profile:
-        email = escape_md(profile.get("email", "unknown"))
+        email = escape_md(profile.get("alert_email") or profile.get("email") or "Not set")
         content = f"👋 *Welcome back\\!*\n\nYour account is linked to:\n📧 `{email}`\n\nUse the menu below or type `/help` for commands\\."
     else:
         content = (
